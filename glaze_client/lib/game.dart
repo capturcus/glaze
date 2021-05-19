@@ -40,6 +40,10 @@ class _GamePageState extends State<GamePage> {
     });
   }
 
+  _websocketListen(message) {
+    debugPrint("ws message: " + message);
+  }
+
   _connectToServer() async {
     final result = await Navigator.push(
         context,
@@ -53,10 +57,7 @@ class _GamePageState extends State<GamePage> {
         host: hostAndPort[0],
         port: (hostAndPort.length == 2) ? int.parse(hostAndPort[1]) : 80);
     webSocketChannel = WebSocketChannel.connect(uri);
-    webSocketChannel.stream.listen((message) {
-      debugPrint("ws message: " + message);
-    });
-    webSocketChannel.sink.add(result[1]);
+    webSocketChannel.stream.listen(_websocketListen);
   }
 
   @override
