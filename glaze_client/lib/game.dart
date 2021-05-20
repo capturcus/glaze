@@ -1,9 +1,10 @@
+import 'dart:convert';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_treeview/flutter_treeview.dart';
 import 'package:glaze_client/connect.dart';
 import 'package:flutter/scheduler.dart';
 import 'package:web_socket_channel/web_socket_channel.dart';
-import 'package:web_socket_channel/status.dart' as status;
 
 class GamePage extends StatefulWidget {
   GamePage(Key key) : super(key: key);
@@ -18,6 +19,7 @@ class _GamePageState extends State<GamePage> {
   late WebSocketChannel webSocketChannel;
 
   _GamePageState() {
+    _treeViewController = TreeViewController(children: []);
     SchedulerBinding.instance!.addPostFrameCallback((_) {
       try {
         _connectToServer();
@@ -40,8 +42,43 @@ class _GamePageState extends State<GamePage> {
     });
   }
 
+  int _lastKey = 0;
+
+  _newKey() {
+    _lastKey++;
+    return "key" + _lastKey.toString();
+  }
+
+  List<Node> _jsonToNodeList(j) {
+    print("_jsonToNodeList on: " + j.toString());
+    List<Node> ret = [];
+    if (j is Map<String, dynamic>) {
+      Map<String, dynamic> map = j;
+      for (var key in map.keys) {
+        var val = map[key];
+        if (val is String || val is int) {
+          ret.add(Node(key: _newKey(), label: key + ": " + val.toString()));
+        }
+        if (val is Map<String, dynamic>) {
+          ret.add(
+              Node(key: _newKey(), label: key, children: _jsonToNodeList(val)));
+        }
+      }
+      return ret;
+    }
+    throw Exception("unsupported json structure");
+  }
+
   _websocketListen(message) {
     debugPrint("ws message: " + message);
+    final j = jsonDecode(message);
+    List<Node> jsonNodes = _jsonToNodeList(j);
+    print("_jsonToNodeList finished");
+    setState(() {
+      print(_treeViewController.toString());
+      _treeViewController = _treeViewController.copyWith(children: jsonNodes);
+      print(_treeViewController.toString());
+    });
   }
 
   _connectToServer() async {
@@ -58,7 +95,7 @@ class _GamePageState extends State<GamePage> {
         port: (hostAndPort.length == 2) ? int.parse(hostAndPort[1]) : 80);
     webSocketChannel = WebSocketChannel.connect(uri);
     webSocketChannel.stream.listen(_websocketListen);
-    webSocketChannel.sink.add('{"name":"'+result[1]+'"}');
+    webSocketChannel.sink.add('{"name":"' + result[1] + '"}');
   }
 
   @override
@@ -87,52 +124,19 @@ class _GamePageState extends State<GamePage> {
       ),
       colorScheme: ColorScheme.light(),
     );
-    List<Node> nodes = [
-      Node(
-        label: 'Documents',
-        key: 'docs',
-        expanded: true,
-        icon: Icons.folder,
-        children: [
-          Node(label: 'Job Search', key: 'd3', icon: Icons.input, children: [
-            Node(
-              label: 'Resume.docx',
-              key: 'pd1',
-              icon: Icons.insert_drive_file,
-            ),
-            Node(
-                label: 'Cover Letter.docx',
-                key: 'pd2',
-                icon: Icons.insert_drive_file),
-          ]),
-          Node(
-            label: 'Inspection.docx',
-            key: 'd1',
-          ),
-          Node(label: 'Invoice.docx', key: 'd2', icon: Icons.insert_drive_file),
-        ],
-      ),
-      Node(
-          label: 'MeetingReport.xls',
-          key: 'mrxls',
-          icon: Icons.insert_drive_file),
-      Node(
-          label: 'MeetingReport.pdf',
-          key: 'mrpdf',
-          icon: Icons.insert_drive_file),
-      Node(label: 'Demo.zip', key: 'demo', icon: Icons.archive),
-    ];
-    _treeViewController = TreeViewController(children: nodes);
     return Scaffold(
       appBar: AppBar(
         title: Text("Glaze game"),
       ),
       body: TreeView(
           controller: _treeViewController,
-          allowParentSelect: false,
-          supportParentDoubleTap: false,
-          onExpansionChanged: (key, expanded) => _expandNode(key, expanded),
-          onNodeTap: (key) {
+          allowParentSelect: true,
+          supportParentDoubleTap: true,
+          onExpansionChanged: (key, expanded) {
+            print(_treeViewController.toString());
+            return _expandNode(key, expanded);
+          },
+          onNodeDoubleTap: (key) {
             setState(() {
               _treeViewController =
                   _treeViewController.copyWith(selectedKey: key);
