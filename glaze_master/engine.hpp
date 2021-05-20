@@ -2,6 +2,6 @@
 
 #include <string>
 
-class player;
+struct player;
 
 void enqueue_message(const player& p, const std::string& message);
