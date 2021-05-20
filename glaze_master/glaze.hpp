@@ -8,9 +8,15 @@
 #include <boost/beast/core.hpp>
 #include <boost/beast/websocket.hpp>
 
+typedef boost::beast::websocket::stream<boost::asio::ip::tcp::socket> boost_websocket;
 struct player {
 	std::string name;
-	std::unique_ptr<boost::beast::websocket::stream<boost::asio::ip::tcp::socket>> socket;
+	std::unique_ptr<boost_websocket> socket;
+
+	inline player() {}
+	inline player(std::string n, std::unique_ptr<boost_websocket> ws)
+		: name(n), socket(std::move(ws))
+		{}
 };
 
-extern std::vector<player> players;
+extern std::vector<std::unique_ptr<player>> players;

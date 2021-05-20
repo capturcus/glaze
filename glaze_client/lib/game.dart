@@ -58,6 +58,7 @@ class _GamePageState extends State<GamePage> {
         port: (hostAndPort.length == 2) ? int.parse(hostAndPort[1]) : 80);
     webSocketChannel = WebSocketChannel.connect(uri);
     webSocketChannel.stream.listen(_websocketListen);
+    webSocketChannel.sink.add('{"name":"'+result[1]+'"}');
   }
 
   @override

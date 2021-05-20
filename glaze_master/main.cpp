@@ -5,7 +5,7 @@
 #include "cli.hpp"
 #include "engine.hpp"
 
-std::vector<player> players;
+std::vector<std::unique_ptr<player>> players;
 
 int main() {
 	std::vector<std::thread> threads;

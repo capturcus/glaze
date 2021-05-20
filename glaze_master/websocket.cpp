@@ -7,7 +7,7 @@
 #include <boost/asio/ip/tcp.hpp>
 #include <boost/beast/core.hpp>
 #include <boost/beast/websocket.hpp>
-#include <boost/json/src.hpp>
+#include <boost/json.hpp>
 
 #include "glaze.hpp"
 #include "engine.hpp"
@@ -30,8 +30,19 @@ void send_text(websocket::stream<tcp::socket>& ws, std::string text) {
 	ws.write(net::buffer(text));
 }
 
+void websocket_main_loop(player* p) {
+	for (;;)
+	{
+		auto message = next_message(*p->socket);
+		enqueue_message(p, message);
+	}
+}
+
+std::mutex players_mutex;
+
 void
 do_session(tcp::socket socket) {
+	player* new_player_ptr = nullptr;
 	try
 	{
 		auto ws = std::make_unique<websocket::stream<tcp::socket>>(std::move(socket));
@@ -49,8 +60,9 @@ do_session(tcp::socket socket) {
 		auto first_message = next_message(*ws);
 		json::value value = json::parse(first_message);
 		auto incoming_name = value.as_object()["name"].as_string();
+		std::lock_guard<std::mutex> lock(players_mutex);
 		auto it = std::find_if(players.begin(), players.end(),
-			[&incoming_name](player& p) { return p.name == incoming_name; });
+			[&incoming_name](auto& p) { return p->name == incoming_name; });
 		if (it != players.end()) {
 			// this name is already taken
 			std::cout << "name " << incoming_name << " already taken\n";
@@ -58,16 +70,11 @@ do_session(tcp::socket socket) {
 			return;
 		}
 
-		player new_player;
-		new_player.name = std::string(incoming_name.c_str());
-		new_player.socket = std::move(ws);
-		players.push_back(std::move(new_player));
+		std::cout << "registering new player " << incoming_name << "\n";
 
-		for (;;)
-		{
-			auto message = next_message(*ws);
-			enqueue_message(new_player, message);
-		}
+		auto new_player = std::make_unique<player>(incoming_name.c_str(), std::move(ws));
+		players.push_back(std::move(new_player));
+		new_player_ptr = players.back().get();
 	}
 	catch(beast::system_error const& se)
 	{
@@ -79,6 +86,8 @@ do_session(tcp::socket socket) {
 	{
 		std::cerr << "Error: " << e.what() << std::endl;
 	}
+	if (new_player_ptr)
+		websocket_main_loop(new_player_ptr);
 }
 
 void websocket_thread() {
