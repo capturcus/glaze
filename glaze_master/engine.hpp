@@ -5,3 +5,4 @@
 struct player;
 
 void enqueue_message(const player& p, const std::string& message);
+void engine_thread();

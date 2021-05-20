@@ -1,4 +1,5 @@
 #include "engine.hpp"
+#include "glaze.hpp"
 
 #include <mutex>
 #include <queue>
