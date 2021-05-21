@@ -98,6 +98,7 @@ void do_session(tcp::socket socket)
 	{
 		std::cerr << "Error: " << e.what() << std::endl;
 	}
+	enqueue_message(new_player_ptr, "{\"type\":\"init_world\"}");
 	if (new_player_ptr)
 		websocket_main_loop(new_player_ptr);
 }

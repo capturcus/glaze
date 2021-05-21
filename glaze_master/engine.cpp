@@ -74,13 +74,13 @@ void process_rpc_call(player* p, std::string rpc_key,
 void process_message(player* p, const std::string& message) {
 	auto j = json::parse(message).as_object();
 	if (j["type"] == "cli_input") {
-		for (auto& p : players) {
-			send_text(*p->socket, json::serialize(test_world));
-		}
 	}
 	if (j["type"] == "rpc_call") {
 		process_rpc_call(p, j["rpc_key"].as_string().c_str(),
 			j["function_name"].as_string().c_str(), j["data"]);
+	}
+	if (j["type"] == "init_world") {
+		send_text(*p->socket, json::serialize(test_world));
 	}
 }
 

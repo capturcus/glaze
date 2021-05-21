@@ -9,8 +9,6 @@ import 'package:flutter/scheduler.dart';
 import 'package:web_socket_channel/web_socket_channel.dart';
 
 class GamePage extends StatefulWidget {
-  GamePage(Key key) : super(key: key);
-
   @override
   _GamePageState createState() => _GamePageState();
 }
@@ -56,8 +54,6 @@ class _GamePageState extends State<GamePage> {
   }
 
   _expandNode(String key, bool expanded) {
-    String msg = '${expanded ? "Expanded" : "Collapsed"}: $key';
-    debugPrint(msg);
     Node node = _treeViewController.getNode(key)!;
     List<Node> updated;
     updated =
@@ -90,9 +86,6 @@ class _GamePageState extends State<GamePage> {
   }
 
   List<Node> _jsonToNodeList(j, List<Node>? previousNodes) {
-    print("_jsonToNodeList");
-    print(j.toString());
-    print(previousNodes.toString());
     List<Node> ret = [];
     if (j is Map<String, dynamic>) {
       Map<String, dynamic> map = j;
@@ -157,7 +150,6 @@ class _GamePageState extends State<GamePage> {
         MaterialPageRoute(
           builder: (context) => ConnectPage(),
         ));
-    debugPrint(result[0] + " " + result[1]);
     final hostAndPort = result[0].toString().split(":");
     final uri = Uri(
         scheme: 'ws',
@@ -197,18 +189,18 @@ class _GamePageState extends State<GamePage> {
 
   _performAction(String key) async {
     Node n = _treeViewController.getNode(key)!;
-    List<String> path = _getPath(n);
-    List<dynamic> actions =
-        await _performRpc("actions_for_node", path.join("."));
-    print(actions.toString());
-    // final result = await Navigator.push(
-    //     context,
-    //     MaterialPageRoute(
-    //       builder: (context) => ActionPage(n.label),
-    //     ));
-    // Map<String, dynamic> ret = {
-    //   "type": "action_taken",
-    // };
+    String path = _getPath(n).join(".");
+    List<dynamic> actions = await _performRpc("actions_for_node", path);
+    final result = await Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (context) => ActionPage(path, actions),
+        ));
+    Map<String, dynamic> ret = {
+      "type": "action_taken",
+      "target": path,
+      "action": result,
+    };
   }
 
   @override
@@ -226,7 +218,6 @@ class _GamePageState extends State<GamePage> {
                 allowParentSelect: true,
                 supportParentDoubleTap: true,
                 onExpansionChanged: (key, expanded) {
-                  print(_treeViewController.toString());
                   return _expandNode(key, expanded);
                 },
                 onNodeDoubleTap: _performAction,
