@@ -17,6 +17,9 @@ class _GamePageState extends State<GamePage> {
   late TreeViewController _treeViewController;
   bool docsOpen = true;
   late WebSocketChannel webSocketChannel;
+  List<String> logMessages = [];
+  ScrollController _scrollController = new ScrollController();
+
   TreeViewTheme _treeViewTheme = TreeViewTheme(
     expanderTheme: ExpanderThemeData(
       type: ExpanderType.caret,
@@ -96,13 +99,26 @@ class _GamePageState extends State<GamePage> {
   _websocketListen(message) {
     debugPrint("ws message: " + message);
     final j = jsonDecode(message);
-    List<Node> jsonNodes = _jsonToNodeList(j);
-    print("_jsonToNodeList finished");
-    setState(() {
-      print(_treeViewController.toString());
-      _treeViewController = _treeViewController.copyWith(children: jsonNodes);
-      print(_treeViewController.toString());
-    });
+    if (j["type"] == "world_update") {
+      List<Node> jsonNodes = _jsonToNodeList(j["world"]);
+      print("_jsonToNodeList finished");
+      setState(() {
+        print(_treeViewController.toString());
+        _treeViewController = _treeViewController.copyWith(children: jsonNodes);
+        print(_treeViewController.toString());
+      });
+    } else if (j["type"] == "log_message") {
+      setState(() {
+        logMessages.add(j["log"]);
+      });
+      SchedulerBinding.instance!.addPostFrameCallback((_) {
+        _scrollController.animateTo(
+          _scrollController.position.maxScrollExtent,
+          duration: const Duration(milliseconds: 300),
+          curve: Curves.easeOut,
+        );
+      });
+    }
   }
 
   _connectToServer() async {
@@ -155,22 +171,19 @@ class _GamePageState extends State<GamePage> {
             endIndent: 20,
           ),
           Expanded(
-            flex: 3,
-            child: ListView(
-              padding: const EdgeInsets.all(8),
-              children: <Widget>[
-                Container(
-                  child: Text('Entry A'),
-                ),
-                Container(
-                  child: Text('Entry B'),
-                ),
-                Container(
-                  child: Text('Entry C'),
-                ),
-              ],
-            ),
-          )
+              flex: 3,
+              child: ListView.builder(
+                  padding: const EdgeInsets.all(8),
+                  itemCount: logMessages.length,
+                  controller: _scrollController,
+                  itemBuilder: (BuildContext context, int index) {
+                    return Container(
+                      child: Text(
+                        logMessages[index],
+                        style: TextStyle(fontSize: 16),
+                      ),
+                    );
+                  }))
         ]));
   }
 }
