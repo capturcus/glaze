@@ -19,40 +19,51 @@ namespace net = boost::asio;
 namespace json = boost::json;
 using tcp = boost::asio::ip::tcp;
 
-std::string next_message(websocket::stream<tcp::socket>& ws) {
+std::string next_message(websocket::stream<tcp::socket> &ws)
+{
 	beast::flat_buffer buffer;
 	ws.read(buffer);
 	return beast::buffers_to_string(buffer.data());
 }
 
-void send_text(websocket::stream<tcp::socket>& ws, std::string text) {
+void send_text(websocket::stream<tcp::socket> &ws, std::string text)
+{
 	ws.text(true);
 	ws.write(net::buffer(text));
 }
 
-void websocket_main_loop(player* p) {
-	for (;;)
+void websocket_main_loop(player *p)
+{
+	try
 	{
-		auto message = next_message(*p->socket);
-		enqueue_message(p, message);
+		for (;;)
+		{
+			auto message = next_message(*p->socket);
+			enqueue_message(p, message);
+		}
+	}
+	catch (const boost::system::system_error &error)
+	{
+		std::cout << "next_message failed for player " << p->name << ": " << error.what() << "\n";
+		auto it = std::remove_if(players.begin(), players.end(), [p](auto &pl) { return pl->name == p->name; });
+		players.erase(it);
 	}
 }
 
 std::mutex players_mutex;
 
-void
-do_session(tcp::socket socket) {
-	player* new_player_ptr = nullptr;
+void do_session(tcp::socket socket)
+{
+	player *new_player_ptr = nullptr;
 	try
 	{
 		auto ws = std::make_unique<websocket::stream<tcp::socket>>(std::move(socket));
 
 		ws->set_option(websocket::stream_base::decorator(
-			[](websocket::response_type& res)
-			{
+			[](websocket::response_type &res) {
 				res.set(http::field::server,
-					std::string(BOOST_BEAST_VERSION_STRING) +
-						" websocket-server-sync");
+						std::string(BOOST_BEAST_VERSION_STRING) +
+							" websocket-server-sync");
 			}));
 
 		ws->accept();
@@ -62,8 +73,9 @@ do_session(tcp::socket socket) {
 		auto incoming_name = value.as_object()["name"].as_string();
 		std::lock_guard<std::mutex> lock(players_mutex);
 		auto it = std::find_if(players.begin(), players.end(),
-			[&incoming_name](auto& p) { return p->name == incoming_name; });
-		if (it != players.end()) {
+							   [&incoming_name](auto &p) { return p->name == incoming_name; });
+		if (it != players.end())
+		{
 			// this name is already taken
 			std::cout << "name " << incoming_name << " already taken\n";
 			ws->close(boost::beast::websocket::close_reason());
@@ -76,13 +88,13 @@ do_session(tcp::socket socket) {
 		players.push_back(std::move(new_player));
 		new_player_ptr = players.back().get();
 	}
-	catch(beast::system_error const& se)
+	catch (beast::system_error const &se)
 	{
 		// This indicates that the session was closed
-		if(se.code() != websocket::error::closed)
+		if (se.code() != websocket::error::closed)
 			std::cerr << "Error: " << se.code().message() << std::endl;
 	}
-	catch(std::exception const& e)
+	catch (std::exception const &e)
 	{
 		std::cerr << "Error: " << e.what() << std::endl;
 	}
@@ -90,7 +102,8 @@ do_session(tcp::socket socket) {
 		websocket_main_loop(new_player_ptr);
 }
 
-void websocket_thread() {
+void websocket_thread()
+{
 	try
 	{
 		auto const address = net::ip::make_address("0.0.0.0");
@@ -107,10 +120,11 @@ void websocket_thread() {
 
 			std::thread(
 				&do_session,
-				std::move(socket)).detach();
+				std::move(socket))
+				.detach();
 		}
 	}
-	catch (const std::exception& e)
+	catch (const std::exception &e)
 	{
 		std::cerr << "Error: " << e.what() << std::endl;
 		return;

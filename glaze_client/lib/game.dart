@@ -17,6 +17,30 @@ class _GamePageState extends State<GamePage> {
   late TreeViewController _treeViewController;
   bool docsOpen = true;
   late WebSocketChannel webSocketChannel;
+  TreeViewTheme _treeViewTheme = TreeViewTheme(
+    expanderTheme: ExpanderThemeData(
+      type: ExpanderType.caret,
+      modifier: ExpanderModifier.none,
+      position: ExpanderPosition.start,
+      color: Colors.red.shade800,
+      size: 20,
+    ),
+    labelStyle: TextStyle(
+      fontSize: 16,
+      letterSpacing: 0.3,
+    ),
+    parentLabelStyle: TextStyle(
+      fontSize: 16,
+      letterSpacing: 0.1,
+      fontWeight: FontWeight.w800,
+      // color: Colors.red.shade600,
+    ),
+    iconTheme: IconThemeData(
+      size: 18,
+      color: Colors.grey.shade800,
+    ),
+    colorScheme: ColorScheme.light(),
+  );
 
   _GamePageState() {
     _treeViewController = TreeViewController(children: []);
@@ -100,49 +124,53 @@ class _GamePageState extends State<GamePage> {
 
   @override
   Widget build(BuildContext context) {
-    TreeViewTheme _treeViewTheme = TreeViewTheme(
-      expanderTheme: ExpanderThemeData(
-        type: ExpanderType.caret,
-        modifier: ExpanderModifier.none,
-        position: ExpanderPosition.start,
-        color: Colors.red.shade800,
-        size: 20,
-      ),
-      labelStyle: TextStyle(
-        fontSize: 16,
-        letterSpacing: 0.3,
-      ),
-      parentLabelStyle: TextStyle(
-        fontSize: 16,
-        letterSpacing: 0.1,
-        fontWeight: FontWeight.w800,
-        // color: Colors.red.shade600,
-      ),
-      iconTheme: IconThemeData(
-        size: 18,
-        color: Colors.grey.shade800,
-      ),
-      colorScheme: ColorScheme.light(),
-    );
     return Scaffold(
-      appBar: AppBar(
-        title: Text("Glaze game"),
-      ),
-      body: TreeView(
-          controller: _treeViewController,
-          allowParentSelect: true,
-          supportParentDoubleTap: true,
-          onExpansionChanged: (key, expanded) {
-            print(_treeViewController.toString());
-            return _expandNode(key, expanded);
-          },
-          onNodeDoubleTap: (key) {
-            setState(() {
-              _treeViewController =
-                  _treeViewController.copyWith(selectedKey: key);
-            });
-          },
-          theme: _treeViewTheme),
-    );
+        appBar: AppBar(
+          title: Text("Glaze game"),
+        ),
+        body: Column(children: [
+          Expanded(
+            flex: 7,
+            child: TreeView(
+                shrinkWrap: true,
+                controller: _treeViewController,
+                allowParentSelect: true,
+                supportParentDoubleTap: true,
+                onExpansionChanged: (key, expanded) {
+                  print(_treeViewController.toString());
+                  return _expandNode(key, expanded);
+                },
+                onNodeDoubleTap: (key) {
+                  setState(() {
+                    _treeViewController =
+                        _treeViewController.copyWith(selectedKey: key);
+                  });
+                },
+                theme: _treeViewTheme),
+          ),
+          const Divider(
+            height: 20,
+            thickness: 5,
+            indent: 20,
+            endIndent: 20,
+          ),
+          Expanded(
+            flex: 3,
+            child: ListView(
+              padding: const EdgeInsets.all(8),
+              children: <Widget>[
+                Container(
+                  child: Text('Entry A'),
+                ),
+                Container(
+                  child: Text('Entry B'),
+                ),
+                Container(
+                  child: Text('Entry C'),
+                ),
+              ],
+            ),
+          )
+        ]));
   }
 }
