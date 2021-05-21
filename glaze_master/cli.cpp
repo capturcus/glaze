@@ -24,6 +24,6 @@ void cli_thread() {
 	for (;;) {
 		std::string line;
 		getline(std::cin, line);
-		enqueue_message(nullptr, trim(line));
+		enqueue_message(nullptr, "{\"type\":\"cli_input\", \"line\":\"" + trim(line) + "\"}");
 	}
 }

@@ -2,8 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
 
 class ConnectPage extends StatefulWidget {
-  ConnectPage(Key key) : super(key: key);
-
   @override
   _ConnectPageState createState() => _ConnectPageState();
 }

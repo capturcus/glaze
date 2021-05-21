@@ -48,17 +48,39 @@ json::object make_test_log() {
 	};
 }
 
+json::value test_actions = { "attack", "cast spell", "distract"};
+
+typedef json::value (*rpc_handler)(json::value);
+
+json::value rpc_actions_for_node(json::value data) {
+	return test_actions;
+}
+
+std::map<std::string, rpc_handler> rpc_handlers = {
+	std::make_pair( "actions_for_node", rpc_actions_for_node ),
+};
+
+void process_rpc_call(player* p, std::string rpc_key,
+	std::string function_name, json::value data) {
+	json::value ret = rpc_handlers[function_name](data);
+	json::object ret_j = {
+		{ "type", "rpc_result" },
+		{ "rpc_key", rpc_key },
+		{ "data", ret },
+	};
+	send_text(*p->socket, json::serialize(ret_j));
+}
+
 void process_message(player* p, const std::string& message) {
-	std::cout << "message |" << message << "|\n";
-	if (message == "l") {
-		std::cout << "sending test log\n";
+	auto j = json::parse(message).as_object();
+	if (j["type"] == "cli_input") {
 		for (auto& p : players) {
-			send_text(*p->socket, json::serialize(make_test_log()));
+			send_text(*p->socket, json::serialize(test_world));
 		}
-		return;
 	}
-	for (auto& p : players) {
-		send_text(*p->socket, json::serialize(test_world));
+	if (j["type"] == "rpc_call") {
+		process_rpc_call(p, j["rpc_key"].as_string().c_str(),
+			j["function_name"].as_string().c_str(), j["data"]);
 	}
 }
 

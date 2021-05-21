@@ -1,7 +1,9 @@
+import 'dart:async';
 import 'dart:convert';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_treeview/flutter_treeview.dart';
+import 'package:glaze_client/action.dart';
 import 'package:glaze_client/connect.dart';
 import 'package:flutter/scheduler.dart';
 import 'package:web_socket_channel/web_socket_channel.dart';
@@ -44,16 +46,12 @@ class _GamePageState extends State<GamePage> {
   late WebSocketChannel webSocketChannel;
   List<String> logMessages = [];
   ScrollController _scrollController = new ScrollController();
+  Map<String, Completer<dynamic>> _rpcCompleters = {};
 
   _GamePageState() {
     _treeViewController = TreeViewController(children: []);
     SchedulerBinding.instance!.addPostFrameCallback((_) {
-      try {
-        _connectToServer();
-      } catch (e) {
-        debugPrint("connection error");
-        _connectToServer();
-      }
+      _connectToServer();
     });
   }
 
@@ -123,6 +121,19 @@ class _GamePageState extends State<GamePage> {
     throw Exception("unsupported json structure");
   }
 
+  _pushLog(String log) {
+    setState(() {
+      logMessages.add(log);
+    });
+    SchedulerBinding.instance!.addPostFrameCallback((_) {
+      _scrollController.animateTo(
+        _scrollController.position.maxScrollExtent,
+        duration: const Duration(milliseconds: 300),
+        curve: Curves.easeOut,
+      );
+    });
+  }
+
   _websocketListen(message) {
     debugPrint("ws message: " + message);
     final j = jsonDecode(message);
@@ -133,16 +144,10 @@ class _GamePageState extends State<GamePage> {
         _treeViewController = _treeViewController.copyWith(children: jsonNodes);
       });
     } else if (j["type"] == "log_message") {
-      setState(() {
-        logMessages.add(j["log"]);
-      });
-      SchedulerBinding.instance!.addPostFrameCallback((_) {
-        _scrollController.animateTo(
-          _scrollController.position.maxScrollExtent,
-          duration: const Duration(milliseconds: 300),
-          curve: Curves.easeOut,
-        );
-      });
+      _pushLog(j["log"]);
+    } else if (j["type"] == "rpc_result") {
+      _rpcCompleters[j["rpc_key"]]!.complete(j["data"]);
+      _rpcCompleters.remove(j["rpc_key"]);
     }
   }
 
@@ -150,7 +155,7 @@ class _GamePageState extends State<GamePage> {
     final result = await Navigator.push(
         context,
         MaterialPageRoute(
-          builder: (context) => ConnectPage(Key('connect_page')),
+          builder: (context) => ConnectPage(),
         ));
     debugPrint(result[0] + " " + result[1]);
     final hostAndPort = result[0].toString().split(":");
@@ -161,6 +166,49 @@ class _GamePageState extends State<GamePage> {
     webSocketChannel = WebSocketChannel.connect(uri);
     webSocketChannel.stream.listen(_websocketListen);
     webSocketChannel.sink.add('{"name":"' + result[1] + '"}');
+  }
+
+  List<String> _getPathAux(Node n, List<String> ret) {
+    Node? p = _treeViewController.getParent(n.key);
+    ret.add(n.label.split(":")[0]);
+    if (p!.key == n.key) {
+      return ret;
+    }
+    return _getPathAux(p, ret);
+  }
+
+  List<String> _getPath(Node n) {
+    return List.from((_getPathAux(n, [])).reversed);
+  }
+
+  Future<dynamic> _performRpc(String functionName, data) {
+    String rpcKey = Utilities.generateRandom();
+    Map<String, dynamic> req = {
+      "type": "rpc_call",
+      "rpc_key": rpcKey,
+      "function_name": functionName,
+      "data": data,
+    };
+    Completer<dynamic> ret = Completer();
+    _rpcCompleters[rpcKey] = ret;
+    webSocketChannel.sink.add(jsonEncode(req));
+    return ret.future;
+  }
+
+  _performAction(String key) async {
+    Node n = _treeViewController.getNode(key)!;
+    List<String> path = _getPath(n);
+    List<dynamic> actions =
+        await _performRpc("actions_for_node", path.join("."));
+    print(actions.toString());
+    // final result = await Navigator.push(
+    //     context,
+    //     MaterialPageRoute(
+    //       builder: (context) => ActionPage(n.label),
+    //     ));
+    // Map<String, dynamic> ret = {
+    //   "type": "action_taken",
+    // };
   }
 
   @override
@@ -181,11 +229,10 @@ class _GamePageState extends State<GamePage> {
                   print(_treeViewController.toString());
                   return _expandNode(key, expanded);
                 },
-                onNodeDoubleTap: (key) {
-                  setState(() {
-                    _treeViewController =
-                        _treeViewController.copyWith(selectedKey: key);
-                  });
+                onNodeDoubleTap: _performAction,
+                onNodeTap: (key) {
+                  Node n = _treeViewController.getNode(key)!;
+                  _expandNode(key, !n.expanded);
                 },
                 theme: treeViewTheme),
           ),
