@@ -13,37 +13,37 @@ class GamePage extends StatefulWidget {
   _GamePageState createState() => _GamePageState();
 }
 
+final TreeViewTheme treeViewTheme = TreeViewTheme(
+  expanderTheme: ExpanderThemeData(
+    type: ExpanderType.caret,
+    modifier: ExpanderModifier.none,
+    position: ExpanderPosition.start,
+    color: Colors.red.shade800,
+    size: 20,
+  ),
+  labelStyle: TextStyle(
+    fontSize: 16,
+    letterSpacing: 0.3,
+  ),
+  parentLabelStyle: TextStyle(
+    fontSize: 16,
+    letterSpacing: 0.1,
+    fontWeight: FontWeight.w800,
+    // color: Colors.red.shade600,
+  ),
+  iconTheme: IconThemeData(
+    size: 18,
+    color: Colors.grey.shade800,
+  ),
+  colorScheme: ColorScheme.light(),
+);
+
 class _GamePageState extends State<GamePage> {
   late TreeViewController _treeViewController;
   bool docsOpen = true;
   late WebSocketChannel webSocketChannel;
   List<String> logMessages = [];
   ScrollController _scrollController = new ScrollController();
-
-  TreeViewTheme _treeViewTheme = TreeViewTheme(
-    expanderTheme: ExpanderThemeData(
-      type: ExpanderType.caret,
-      modifier: ExpanderModifier.none,
-      position: ExpanderPosition.start,
-      color: Colors.red.shade800,
-      size: 20,
-    ),
-    labelStyle: TextStyle(
-      fontSize: 16,
-      letterSpacing: 0.3,
-    ),
-    parentLabelStyle: TextStyle(
-      fontSize: 16,
-      letterSpacing: 0.1,
-      fontWeight: FontWeight.w800,
-      // color: Colors.red.shade600,
-    ),
-    iconTheme: IconThemeData(
-      size: 18,
-      color: Colors.grey.shade800,
-    ),
-    colorScheme: ColorScheme.light(),
-  );
 
   _GamePageState() {
     _treeViewController = TreeViewController(children: []);
@@ -76,8 +76,25 @@ class _GamePageState extends State<GamePage> {
     return "key" + _lastKey.toString();
   }
 
-  List<Node> _jsonToNodeList(j) {
-    print("_jsonToNodeList on: " + j.toString());
+  Node? _getChildByLabel(List<Node> nodes, String label) {
+    for (var child in nodes) {
+      if (child.label == label) {
+        return child;
+      }
+    }
+    return null;
+  }
+
+  _getPreviousExpandedStatus(List<Node> nodes, String label) {
+    Node? child = _getChildByLabel(nodes, label);
+    if (child == null) return false;
+    return child.expanded;
+  }
+
+  List<Node> _jsonToNodeList(j, List<Node>? previousNodes) {
+    print("_jsonToNodeList");
+    print(j.toString());
+    print(previousNodes.toString());
     List<Node> ret = [];
     if (j is Map<String, dynamic>) {
       Map<String, dynamic> map = j;
@@ -87,8 +104,18 @@ class _GamePageState extends State<GamePage> {
           ret.add(Node(key: _newKey(), label: key + ": " + val.toString()));
         }
         if (val is Map<String, dynamic>) {
-          ret.add(
-              Node(key: _newKey(), label: key, children: _jsonToNodeList(val)));
+          var previousExpandedStatus = (previousNodes == null)
+              ? false
+              : _getPreviousExpandedStatus(previousNodes, key);
+          Node? node = (previousNodes == null)
+              ? null
+              : _getChildByLabel(previousNodes, key);
+          ret.add(Node(
+              key: _newKey(),
+              label: key,
+              expanded: previousExpandedStatus,
+              children:
+                  _jsonToNodeList(val, (node == null) ? null : node.children)));
         }
       }
       return ret;
@@ -100,12 +127,10 @@ class _GamePageState extends State<GamePage> {
     debugPrint("ws message: " + message);
     final j = jsonDecode(message);
     if (j["type"] == "world_update") {
-      List<Node> jsonNodes = _jsonToNodeList(j["world"]);
-      print("_jsonToNodeList finished");
+      List<Node> jsonNodes =
+          _jsonToNodeList(j["world"], _treeViewController.children);
       setState(() {
-        print(_treeViewController.toString());
         _treeViewController = _treeViewController.copyWith(children: jsonNodes);
-        print(_treeViewController.toString());
       });
     } else if (j["type"] == "log_message") {
       setState(() {
@@ -162,7 +187,7 @@ class _GamePageState extends State<GamePage> {
                         _treeViewController.copyWith(selectedKey: key);
                   });
                 },
-                theme: _treeViewTheme),
+                theme: treeViewTheme),
           ),
           const Divider(
             height: 20,

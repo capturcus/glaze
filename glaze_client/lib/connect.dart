@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'dart:io' show Platform;
+import 'package:flutter/foundation.dart' show kIsWeb;
 
 class ConnectPage extends StatefulWidget {
   ConnectPage(Key key) : super(key: key);
@@ -10,8 +10,8 @@ class ConnectPage extends StatefulWidget {
 
 class _ConnectPageState extends State<ConnectPage> {
   final _formKey = GlobalKey<FormState>();
-  final _serverTextController = TextEditingController(
-      text: Platform.isAndroid ? "10.0.2.2:8080" : "127.0.0.1:8080");
+  final _serverTextController =
+      TextEditingController(text: kIsWeb ? "127.0.0.1:8080" : "10.0.2.2:8080");
   final _nameTextController = TextEditingController(text: "siemka");
 
   @override
