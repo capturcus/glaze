@@ -1,11 +1,12 @@
 import 'dart:async';
 import 'dart:convert';
 
-import 'package:flutter/material.dart';
 import 'package:flutter_treeview/flutter_treeview.dart';
+import 'package:flutter/material.dart';
+import 'package:flutter/scheduler.dart';
 import 'package:glaze_client/action.dart';
 import 'package:glaze_client/connect.dart';
-import 'package:flutter/scheduler.dart';
+import 'package:glaze_client/prompt.dart';
 import 'package:web_socket_channel/web_socket_channel.dart';
 
 class GamePage extends StatefulWidget {
@@ -127,6 +128,23 @@ class _GamePageState extends State<GamePage> {
     });
   }
 
+  _handlePrompt(j) async {
+    PromptType pt = textToPromptType(j["prompt_type"]);
+    final promptResult = await Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (context) =>
+              PromptPage(j["prompt_text"], pt, j["prompt_data"]),
+        ));
+    print("prompt result: " + promptResult.toString());
+    Map<String, dynamic> ret = {
+      "type": "prompt_result",
+      "prompt_key": j["prompt_key"],
+      "prompt_result": promptResult,
+    };
+    webSocketChannel.sink.add(jsonEncode(ret));
+  }
+
   _websocketListen(message) {
     debugPrint("websocket message: " + message);
     final j = jsonDecode(message);
@@ -141,6 +159,8 @@ class _GamePageState extends State<GamePage> {
     } else if (j["type"] == "rpc_result") {
       _rpcCompleters[j["rpc_key"]]!.complete(j["data"]);
       _rpcCompleters.remove(j["rpc_key"]);
+    } else if (j["type"] == "prompt") {
+      _handlePrompt(j);
     }
   }
 

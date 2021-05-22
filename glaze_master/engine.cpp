@@ -81,6 +81,33 @@ void process_message(player* p, const std::string& message) {
 	if (j["type"] == "init_world") {
 		send_text(*p->socket, json::serialize(test_world));
 	}
+	if (j["type"] == "cli_input") {
+		std::string line = j["line"].as_string().c_str();
+		std::cout << "cli_input line: |" << line << "|\n";
+		json::object prompt;
+		if (line == "t") {
+			prompt = {
+				{ "type", "prompt" },
+				{ "prompt_type", "text" },
+				{ "prompt_key", "123asd" },
+				{ "prompt_text", "you have been discombobulated" },
+			};
+		}
+		if (line == "c") {
+			prompt = {
+				{ "type", "prompt" },
+				{ "prompt_type", "choice" },
+				{ "prompt_key", "123asd" },
+				{ "prompt_text", "how do you want to be discombobulated?" },
+				{ "prompt_data", { "from the legs", "from the sun", "from Frombork" } }
+			};
+		}
+		for (auto& p : players) {
+			auto text = json::serialize(prompt);
+			std::cout << "sending: " << text << "\n";
+			send_text(*p->socket, text);
+		}
+	}
 }
 
 void engine_thread() {
