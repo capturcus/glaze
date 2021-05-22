@@ -51,6 +51,9 @@ class _ActionPageState extends State<ActionPage> {
                     contentPadding: EdgeInsets.all(16.0),
                     title:
                         Text(actions[index], style: TextStyle(fontSize: 18.0)),
+                    onTap: () {
+                      Navigator.pop(context, actions[index]);
+                    },
                   );
                 })
           ],

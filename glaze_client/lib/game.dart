@@ -128,7 +128,7 @@ class _GamePageState extends State<GamePage> {
   }
 
   _websocketListen(message) {
-    debugPrint("ws message: " + message);
+    debugPrint("websocket message: " + message);
     final j = jsonDecode(message);
     if (j["type"] == "world_update") {
       List<Node> jsonNodes =
@@ -201,6 +201,7 @@ class _GamePageState extends State<GamePage> {
       "target": path,
       "action": result,
     };
+    webSocketChannel.sink.add(jsonEncode(ret));
   }
 
   @override
