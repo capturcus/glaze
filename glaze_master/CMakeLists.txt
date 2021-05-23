@@ -8,8 +8,13 @@ find_package(Threads REQUIRED)
 
 set(CMAKE_CXX_STANDARD 20)
 
+include_directories("deps/sol")
+set(BUILD_SHARED_LIBS false)
+
+add_subdirectory("deps/lua")
+
 file(GLOB server_SRC
-  "*.cpp"
+"*.cpp"
 )
 
 add_executable(glaze_master
@@ -18,5 +23,7 @@ add_executable(glaze_master
 
 target_link_libraries(glaze_master
   ${Boost_SYSTEM_LIBRARY}
+  lua::lib
   Threads::Threads
+  dl
 )

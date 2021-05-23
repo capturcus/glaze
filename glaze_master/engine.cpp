@@ -9,11 +9,15 @@
 #include <boost/interprocess/sync/interprocess_semaphore.hpp>
 #include <boost/json.hpp>
 
+#define SOL_ALL_SAFETIES_ON 1
+#include "deps/sol/sol.hpp"
+
 namespace json = boost::json;
 
 std::mutex queue_mutex;
 std::queue<std::pair<player*, std::string>> queue;
 boost::interprocess::interprocess_semaphore semaphore(0);
+sol::state lua_state;
 
 void enqueue_message(player* p, const std::string& message) {
 	std::unique_lock<std::mutex> ulock(queue_mutex);
@@ -21,39 +25,10 @@ void enqueue_message(player* p, const std::string& message) {
 	semaphore.post();
 }
 
-json::object test_world = {
-	{ "type", "world_update" },
-	{ "world", {
-		{ "sand left", 42 },
-		{ "goblin1", {
-			{ "hp", 100 },
-			{ "mana", 50 },
-			{ "inventory", {
-				{ "sword", { { "atk", 5} } },
-				{ "gold", 5 }
-			} }
-		} },
-		{ "goblin2", {
-			{ "hp", 34 },
-			{ "mana", 40 },
-		} } }
-	}
-};
-
-json::object make_test_log() {
-	static int num = 0;
-	return {
-		{ "type", "log_message" },
-		{ "log", "siemansko" + std::to_string(num++) },
-	};
-}
-
-json::value test_actions = { "attack", "cast spell", "distract"};
-
 typedef json::value (*rpc_handler)(json::value);
 
 json::value rpc_actions_for_node(json::value data) {
-	return test_actions;
+	return json::array();
 }
 
 std::map<std::string, rpc_handler> rpc_handlers = {
@@ -71,6 +46,10 @@ void process_rpc_call(player* p, std::string rpc_key,
 	send_text(*p->socket, json::serialize(ret_j));
 }
 
+void process_cmd(const std::string& line) {
+
+}
+
 void process_message(player* p, const std::string& message) {
 	auto j = json::parse(message).as_object();
 	std::cout << message << "\n";
@@ -79,54 +58,22 @@ void process_message(player* p, const std::string& message) {
 			j["function_name"].as_string().c_str(), j["data"]);
 	}
 	if (j["type"] == "init_world") {
-		send_text(*p->socket, json::serialize(test_world));
+		// send_text(*p->socket, json::serialize(test_world));
 	}
 	if (j["type"] == "cli_input") {
 		std::string line = j["line"].as_string().c_str();
 		std::cout << "cli_input line: |" << line << "|\n";
-		json::object prompt;
-		if (line == "t") {
-			prompt = {
-				{ "type", "prompt" },
-				{ "prompt_type", "text" },
-				{ "prompt_key", "123asd" },
-				{ "prompt_text", "you have been discombobulated" },
-			};
-		}
-		if (line == "c") {
-			prompt = {
-				{ "type", "prompt" },
-				{ "prompt_type", "choice" },
-				{ "prompt_key", "123asd" },
-				{ "prompt_text", "how do you want to be discombobulated?" },
-				{ "prompt_data", { "from the legs", "from the sun", "from Frombork" } }
-			};
-		}
-		if (line == "n") {
-			prompt = {
-				{ "type", "prompt" },
-				{ "prompt_type", "number_response" },
-				{ "prompt_key", "123asd" },
-				{ "prompt_text", "how many do you want to be discombobulated?" },
-			};
-		}
-		if (line == "tr") {
-			prompt = {
-				{ "type", "prompt" },
-				{ "prompt_type", "text_response" },
-				{ "prompt_key", "123asd" },
-				{ "prompt_text", "what do you want to be discombobulated?" },
-			};
-		}
-		for (auto& p : players) {
-			auto text = json::serialize(prompt);
-			std::cout << "sending: " << text << "\n";
-			send_text(*p->socket, text);
+		if (line.size() > 0 && line[0] == '/') {
+			process_cmd(line.substr(1));
+		} else {
+			lua_state.script(line);
 		}
 	}
 }
 
 void engine_thread() {
+	lua_state.open_libraries(sol::lib::base);
+
 	for (;;) {
 		semaphore.wait();
 		auto p = queue.front();
