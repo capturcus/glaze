@@ -102,6 +102,22 @@ void process_message(player* p, const std::string& message) {
 				{ "prompt_data", { "from the legs", "from the sun", "from Frombork" } }
 			};
 		}
+		if (line == "n") {
+			prompt = {
+				{ "type", "prompt" },
+				{ "prompt_type", "number_response" },
+				{ "prompt_key", "123asd" },
+				{ "prompt_text", "how many do you want to be discombobulated?" },
+			};
+		}
+		if (line == "tr") {
+			prompt = {
+				{ "type", "prompt" },
+				{ "prompt_type", "text_response" },
+				{ "prompt_key", "123asd" },
+				{ "prompt_text", "what do you want to be discombobulated?" },
+			};
+		}
 		for (auto& p : players) {
 			auto text = json::serialize(prompt);
 			std::cout << "sending: " << text << "\n";

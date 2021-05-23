@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 enum PromptType {
   text,
@@ -75,11 +76,37 @@ class _PromptPageState extends State<PromptPage> {
   }
 
   Widget _buildTextResponse() {
-    return Container();
+    final controller = TextEditingController();
+    return Column(children: [
+      TextField(
+        controller: controller,
+        decoration: new InputDecoration(labelText: "Enter your text"),
+      ),
+      ElevatedButton(
+          onPressed: () {
+            Navigator.pop(context, controller.text);
+          },
+          child: Text("OK"))
+    ]);
   }
 
   Widget _buildNumberResponse() {
-    return Container();
+    final controller = TextEditingController();
+    return Column(children: [
+      TextField(
+        controller: controller,
+        decoration: new InputDecoration(labelText: "Enter your number"),
+        keyboardType: TextInputType.number,
+        inputFormatters: <TextInputFormatter>[
+          FilteringTextInputFormatter.digitsOnly
+        ], // Only numbers can be entered
+      ),
+      ElevatedButton(
+          onPressed: () {
+            Navigator.pop(context, int.parse(controller.text));
+          },
+          child: Text("OK"))
+    ]);
   }
 
   @override
