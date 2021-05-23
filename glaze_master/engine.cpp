@@ -50,6 +50,16 @@ void process_cmd(const std::string& line) {
 
 }
 
+void push_world(const sol::table& world) {
+	for (const auto& key_value_pair : world ) {
+		sol::object key = key_value_pair.first;
+		// sol::object value = key_value_pair.second;
+
+		std::cout << "key: " << key.as<std::string>() << "\n";
+		// std::cout << "key: " << sol::to_string(value) << "\n";
+	}
+}
+
 void process_message(player* p, const std::string& message) {
 	auto j = json::parse(message).as_object();
 	std::cout << message << "\n";
@@ -66,13 +76,21 @@ void process_message(player* p, const std::string& message) {
 		if (line.size() > 0 && line[0] == '/') {
 			process_cmd(line.substr(1));
 		} else {
-			lua_state.script(line);
+			lua_state.safe_script(line);
 		}
+	}
+	if (lua_state["world"].get_type() == sol::type::table) {
+		sol::table world = lua_state["world"];
+		push_world(world);
+	} else {
+		std::cout << "error: _G.world is not a table\n";
 	}
 }
 
 void engine_thread() {
 	lua_state.open_libraries(sol::lib::base);
+
+	lua_state["world"] = sol::new_table();
 
 	for (;;) {
 		semaphore.wait();

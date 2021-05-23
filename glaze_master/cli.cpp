@@ -3,6 +3,7 @@
 
 #include <iostream>
 #include <algorithm>
+#include <boost/algorithm/string/replace.hpp>
 
 static inline std::string &ltrim(std::string &s) {
     s.erase(s.begin(), std::find_if(s.begin(), s.end(),
@@ -24,6 +25,7 @@ void cli_thread() {
 	for (;;) {
 		std::string line;
 		getline(std::cin, line);
+        boost::replace_all(line, "\"", "\\\"");
 		enqueue_message(nullptr, "{\"type\":\"cli_input\", \"line\":\"" + trim(line) + "\"}");
 	}
 }
