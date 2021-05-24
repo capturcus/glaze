@@ -50,18 +50,52 @@ void process_cmd(const std::string& line) {
 
 }
 
-void push_world(const sol::table& world) {
-	for (const auto& key_value_pair : world ) {
+json::object table_to_json(const sol::table& table) {
+	json::object ret;
+	for (const auto& key_value_pair : table ) {
 		sol::object key = key_value_pair.first;
-		// sol::object value = key_value_pair.second;
+		sol::object value = key_value_pair.second;
 
-		std::cout << "key: " << key.as<std::string>() << "\n";
-		// std::cout << "key: " << sol::to_string(value) << "\n";
+		auto key_str = key.as<std::string>();
+		if (value.is<double>()) {
+			ret[key_str] = value.as<double>();
+		}
+		if (value.is<std::string>()) {
+			ret[key_str] = value.as<std::string>();
+		}
+		if (value.is<sol::table>()) {
+			auto child_json = table_to_json(value.as<sol::table>());
+			ret[key_str] = child_json;
+		}
+	}
+	return ret;
+}
+
+std::string previous_world_update_str;
+
+void push_world_if_necessary(const sol::table& world) {
+	json::object json_world = table_to_json(world);
+	json::object world_update = {
+		{ "type", "world_update" },
+		{ "world", json_world }
+	};
+	std::string new_world_update_str = json::serialize(world_update);
+	if (new_world_update_str != previous_world_update_str) {
+		std::cout << "sending world update: " << new_world_update_str << "\n";
+		for (auto& p : players) {
+			send_text(*p->socket, new_world_update_str);
+		}
 	}
 }
 
 void process_message(player* p, const std::string& message) {
-	auto j = json::parse(message).as_object();
+	json::object j;
+	try {
+		j = json::parse(message).as_object();
+	} catch(const boost::exception& e) {
+		std::cout << "engine: parsing json failed\n";
+		return;
+	}
 	std::cout << message << "\n";
 	if (j["type"] == "rpc_call") {
 		process_rpc_call(p, j["rpc_key"].as_string().c_str(),
@@ -76,12 +110,16 @@ void process_message(player* p, const std::string& message) {
 		if (line.size() > 0 && line[0] == '/') {
 			process_cmd(line.substr(1));
 		} else {
-			lua_state.safe_script(line);
+			lua_state.safe_script(line, [](lua_State*, sol::protected_function_result pfr) {
+				sol::error err = pfr;
+				std::cout << "engine: lua error: " << err.what() << std::endl;
+				return pfr;
+			});
 		}
 	}
 	if (lua_state["world"].get_type() == sol::type::table) {
 		sol::table world = lua_state["world"];
-		push_world(world);
+		push_world_if_necessary(world);
 	} else {
 		std::cout << "error: _G.world is not a table\n";
 	}

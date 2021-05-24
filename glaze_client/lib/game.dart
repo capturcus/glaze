@@ -92,7 +92,7 @@ class _GamePageState extends State<GamePage> {
       Map<String, dynamic> map = j;
       for (var key in map.keys) {
         var val = map[key];
-        if (val is String || val is int) {
+        if (val is String || val is double) {
           ret.add(Node(key: _newKey(), label: key + ": " + val.toString()));
         }
         if (val is Map<String, dynamic>) {
