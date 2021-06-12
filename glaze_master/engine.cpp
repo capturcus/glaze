@@ -1,13 +1,19 @@
 #include "engine.hpp"
 #include "glaze.hpp"
 #include "websocket.hpp"
+#include "engine_lua_api.hpp"
 
 #include <mutex>
 #include <queue>
 #include <iostream>
+#include <fstream>
 
+#include <boost/lexical_cast.hpp>
 #include <boost/interprocess/sync/interprocess_semaphore.hpp>
 #include <boost/json.hpp>
+#include <boost/uuid/uuid_generators.hpp>
+#include <boost/uuid/uuid_io.hpp>
+#include <boost/uuid/uuid.hpp>
 
 #define SOL_ALL_SAFETIES_ON 1
 #include "deps/sol/sol.hpp"
@@ -46,8 +52,47 @@ void process_rpc_call(player* p, std::string rpc_key,
 	send_text(*p->socket, json::serialize(ret_j));
 }
 
-void process_cmd(const std::string& line) {
+boost::uuids::random_generator generator;
 
+struct sol_resumable {
+	sol::thread runner;
+	sol::coroutine coroutine;
+};
+
+std::map<std::string, std::unique_ptr<sol_resumable>> resumables;
+
+void run_as_resumable(const std::string& lua_code) {
+	auto full_script = "function __main()\n" + lua_code + "\nend"; // because I just like to watch the world burn
+	auto new_resumable = std::make_unique<sol_resumable>();
+	new_resumable->runner = sol::thread::create(lua_state.lua_state());
+	sol::state_view runner_state = new_resumable->runner.state();
+	runner_state.safe_script(full_script, [](lua_State*, sol::protected_function_result pfr) {
+		sol::error err = pfr;
+		std::cout << "run_as_resumable: lua error: " << err.what() << std::endl;
+		return pfr;
+	});
+	new_resumable->coroutine = runner_state["__main"];
+	std::string coroutine_id = boost::lexical_cast<std::string>(generator());
+	runner_state[COROUTINE_ID] = coroutine_id;
+	auto result = new_resumable->coroutine();
+	if (!result.valid()) {
+		sol::error err = result;
+		std::string what = err.what();
+		std::cout << what << std::endl;
+	}
+	if (new_resumable->coroutine.runnable())
+		resumables.insert({coroutine_id, std::move(new_resumable)});
+}
+
+void process_cmd(const std::string& line) {
+	if (line.rfind("run", 0) == 0) {
+		auto script_path = line.substr(4);
+		std::cout << "running lua script: " << script_path << "\n";
+		std::ifstream t(script_path);
+		std::stringstream buffer;
+		buffer << t.rdbuf();
+		run_as_resumable(buffer.str());
+	}
 }
 
 json::object table_to_json(const sol::table& table) {
@@ -71,7 +116,7 @@ json::object table_to_json(const sol::table& table) {
 	return ret;
 }
 
-std::string previous_world_update_str;
+std::string previous_world_update_str = "{}";
 
 void push_world_if_necessary(const sol::table& world) {
 	json::object json_world = table_to_json(world);
@@ -85,6 +130,7 @@ void push_world_if_necessary(const sol::table& world) {
 		for (auto& p : players) {
 			send_text(*p->socket, new_world_update_str);
 		}
+		previous_world_update_str = new_world_update_str;
 	}
 }
 
@@ -100,9 +146,6 @@ void process_message(player* p, const std::string& message) {
 	if (j["type"] == "rpc_call") {
 		process_rpc_call(p, j["rpc_key"].as_string().c_str(),
 			j["function_name"].as_string().c_str(), j["data"]);
-	}
-	if (j["type"] == "init_world") {
-		// send_text(*p->socket, json::serialize(test_world));
 	}
 	if (j["type"] == "cli_input") {
 		std::string line = j["line"].as_string().c_str();
@@ -126,9 +169,10 @@ void process_message(player* p, const std::string& message) {
 }
 
 void engine_thread() {
-	lua_state.open_libraries(sol::lib::base);
+	lua_state.open_libraries(sol::lib::base, sol::lib::coroutine);
 
 	lua_state["world"] = sol::new_table();
+	lua_state.set_function("prompt_choice", sol::yielding(prompt_choice));
 
 	for (;;) {
 		semaphore.wait();
