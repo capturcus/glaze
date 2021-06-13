@@ -212,10 +212,11 @@ void engine_thread() {
 	lua_state.open_libraries(sol::lib::base, sol::lib::coroutine);
 
 	lua_state["world"] = sol::new_table();
-	lua_state.set_function("prompt_choice", sol::yielding(prompt_choice));
-	lua_state.set_function("prompt_text", sol::yielding(prompt_text));
-	lua_state.set_function("prompt_text_response", sol::yielding(prompt_text_response));
-	lua_state.set_function("prompt_number_response", sol::yielding(prompt_number_response));
+	lua_state.set_function("prompt_choice", sol::yielding(lua_api::prompt_choice));
+	lua_state.set_function("prompt_text", sol::yielding(lua_api::prompt_text));
+	lua_state.set_function("prompt_text_response", sol::yielding(lua_api::prompt_text_response));
+	lua_state.set_function("prompt_number_response", sol::yielding(lua_api::prompt_number_response));
+	lua_state.set_function("log", lua_api::log);
 
 	for (;;) {
 		semaphore.wait();
