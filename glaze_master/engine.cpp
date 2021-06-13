@@ -157,12 +157,18 @@ void push_world_if_necessary(const sol::table& world) {
 }
 
 void process_prompt_result(json::object j) {
-	std::string prompt_key = j["prompt_key"].as_string().c_str();
-	std::string prompt_result = j["prompt_result"].as_string().c_str();
+	std::string prompt_key = j["prompt_key"].as_string().c_str();	
 	auto it = resumables.find(prompt_key);
 	std::unique_ptr<sol_resumable> resumable = std::move(it->second);
 	resumables.erase(it);
-	continue_coroutine(std::move(resumable), prompt_result);
+	if (j["prompt_result"].is_string()) {
+		std::string prompt_result = j["prompt_result"].as_string().c_str();
+		continue_coroutine(std::move(resumable), prompt_result);
+	} else if (j["prompt_result"].is_number()) {
+		int64_t prompt_result = j["prompt_result"].as_int64();
+		continue_coroutine(std::move(resumable), prompt_result);
+	} else if (j["prompt_result"].is_null())
+		continue_coroutine(std::move(resumable));
 }
 
 void process_message(player* p, const std::string& message) {
@@ -207,6 +213,9 @@ void engine_thread() {
 
 	lua_state["world"] = sol::new_table();
 	lua_state.set_function("prompt_choice", sol::yielding(prompt_choice));
+	lua_state.set_function("prompt_text", sol::yielding(prompt_text));
+	lua_state.set_function("prompt_text_response", sol::yielding(prompt_text_response));
+	lua_state.set_function("prompt_number_response", sol::yielding(prompt_number_response));
 
 	for (;;) {
 		semaphore.wait();
