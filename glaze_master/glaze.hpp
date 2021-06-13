@@ -19,4 +19,6 @@ struct player {
 		{}
 };
 
+void send_to_player_by_name(const std::string& name, std::string data);
+
 extern std::vector<std::unique_ptr<player>> players;

@@ -41,6 +41,22 @@ std::map<std::string, rpc_handler> rpc_handlers = {
 	std::make_pair( "actions_for_node", rpc_actions_for_node ),
 };
 
+player* find_player_by_name(const std::string& name) {
+	auto ret = std::find_if(players.begin(), players.end(), [name](auto& p){
+		return p->name == name;
+	});
+	if (ret == players.end())
+		return nullptr;
+	return ret->get();
+}
+
+void send_to_player_by_name(const std::string& name, std::string data) {
+	auto p = find_player_by_name(name);
+	if (!p)
+		throw std::runtime_error("couldn't find player with name: " + name);
+	send_text(*p->socket, data);
+}
+
 void process_rpc_call(player* p, std::string rpc_key,
 	std::string function_name, json::value data) {
 	json::value ret = rpc_handlers[function_name](data);
@@ -61,6 +77,21 @@ struct sol_resumable {
 
 std::map<std::string, std::unique_ptr<sol_resumable>> resumables;
 
+template<typename... Args>
+void continue_coroutine(std::unique_ptr<sol_resumable>&& resumable, Args... args) {
+	std::string coroutine_id = boost::lexical_cast<std::string>(generator());
+	sol::state_view runner_state = resumable->runner.state();
+	runner_state[COROUTINE_ID] = coroutine_id;
+	auto result = resumable->coroutine(args...);
+	if (!result.valid()) {
+		sol::error err = result;
+		std::string what = err.what();
+		std::cout << what << std::endl;
+	}
+	if (resumable->coroutine.runnable())
+		resumables.insert({coroutine_id, std::move(resumable)});
+}
+
 void run_as_resumable(const std::string& lua_code) {
 	auto full_script = "function __main()\n" + lua_code + "\nend"; // because I just like to watch the world burn
 	auto new_resumable = std::make_unique<sol_resumable>();
@@ -72,16 +103,7 @@ void run_as_resumable(const std::string& lua_code) {
 		return pfr;
 	});
 	new_resumable->coroutine = runner_state["__main"];
-	std::string coroutine_id = boost::lexical_cast<std::string>(generator());
-	runner_state[COROUTINE_ID] = coroutine_id;
-	auto result = new_resumable->coroutine();
-	if (!result.valid()) {
-		sol::error err = result;
-		std::string what = err.what();
-		std::cout << what << std::endl;
-	}
-	if (new_resumable->coroutine.runnable())
-		resumables.insert({coroutine_id, std::move(new_resumable)});
+	continue_coroutine(std::move(new_resumable));
 }
 
 void process_cmd(const std::string& line) {
@@ -134,6 +156,15 @@ void push_world_if_necessary(const sol::table& world) {
 	}
 }
 
+void process_prompt_result(json::object j) {
+	std::string prompt_key = j["prompt_key"].as_string().c_str();
+	std::string prompt_result = j["prompt_result"].as_string().c_str();
+	auto it = resumables.find(prompt_key);
+	std::unique_ptr<sol_resumable> resumable = std::move(it->second);
+	resumables.erase(it);
+	continue_coroutine(std::move(resumable), prompt_result);
+}
+
 void process_message(player* p, const std::string& message) {
 	json::object j;
 	try {
@@ -143,10 +174,10 @@ void process_message(player* p, const std::string& message) {
 		return;
 	}
 	std::cout << message << "\n";
-	if (j["type"] == "rpc_call") {
+	if (j["type"] == "rpc_call")
 		process_rpc_call(p, j["rpc_key"].as_string().c_str(),
 			j["function_name"].as_string().c_str(), j["data"]);
-	}
+
 	if (j["type"] == "cli_input") {
 		std::string line = j["line"].as_string().c_str();
 		std::cout << "cli_input line: |" << line << "|\n";
@@ -160,6 +191,9 @@ void process_message(player* p, const std::string& message) {
 			});
 		}
 	}
+	if (j["type"] == "prompt_result")
+		process_prompt_result(j);
+
 	if (lua_state["world"].get_type() == sol::type::table) {
 		sol::table world = lua_state["world"];
 		push_world_if_necessary(world);
