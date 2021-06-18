@@ -207,9 +207,7 @@ class _GamePageState extends State<GamePage> {
     return ret.future;
   }
 
-  _performAction(String key) async {
-    Node n = _treeViewController.getNode(key)!;
-    String path = _getPath(n).join(".");
+  _performAction(String path) async {
     List<dynamic> actions = await _performRpc("actions_for_node", path);
     final result = await Navigator.push(
         context,
@@ -224,11 +222,26 @@ class _GamePageState extends State<GamePage> {
     webSocketChannel.sink.add(jsonEncode(ret));
   }
 
+  _performActionForNode(String key) async {
+    Node n = _treeViewController.getNode(key)!;
+    String path = _getPath(n).join(".");
+    await this._performAction(path);
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
         appBar: AppBar(
           title: Text("Glaze game"),
+          actions: [
+            IconButton(
+              icon: const Icon(Icons.menu),
+              tooltip: 'show global actions',
+              onPressed: () {
+                this._performAction("");
+              },
+            ),
+          ],
         ),
         body: Column(children: [
           Expanded(
@@ -241,7 +254,7 @@ class _GamePageState extends State<GamePage> {
                 onExpansionChanged: (key, expanded) {
                   return _expandNode(key, expanded);
                 },
-                onNodeDoubleTap: _performAction,
+                onNodeDoubleTap: _performActionForNode,
                 onNodeTap: (key) {
                   Node n = _treeViewController.getNode(key)!;
                   _expandNode(key, !n.expanded);

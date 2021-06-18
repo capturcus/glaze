@@ -14,6 +14,28 @@ class _ActionPageState extends State<ActionPage> {
   _ActionPageState(this.label, this.actions);
   @override
   Widget build(BuildContext context) {
+    Widget actionPrompt;
+    if (label == "") {
+      // global action
+      actionPrompt = Text(
+        "choose a global action:",
+        style: TextStyle(fontSize: 20),
+      );
+    } else {
+      actionPrompt = Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            "choose an action for:",
+            style: TextStyle(fontSize: 20),
+          ),
+          Text(
+            this.label,
+            style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+          )
+        ],
+      );
+    }
     return Scaffold(
         appBar: AppBar(
           title: Text(this.label),
@@ -23,19 +45,7 @@ class _ActionPageState extends State<ActionPage> {
           children: [
             Padding(
               padding: EdgeInsets.all(16),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    "choose an action for:",
-                    style: TextStyle(fontSize: 20),
-                  ),
-                  Text(
-                    this.label,
-                    style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
-                  )
-                ],
-              ),
+              child: actionPrompt,
             ),
             Divider(
               thickness: 3,
