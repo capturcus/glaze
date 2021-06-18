@@ -156,7 +156,30 @@ json::object table_to_json(const sol::table& table) {
 	return ret;
 }
 
-std::string previous_world_update_str = "{}";
+std::string table_to_lua(const sol::table& table) {
+	std::string ret;
+	for (const auto& key_value_pair : table ) {
+		sol::object key = key_value_pair.first;
+		sol::object value = key_value_pair.second;
+
+		auto key_str = key.as<std::string>();
+		if (value.is<double>()) {
+			ret += key_str + "=" + std::to_string(value.as<double>()) + ",";
+		}
+		if (value.is<std::string>()) {
+			ret += key_str + "=\"" + value.as<std::string>() + "\",";
+		}
+		if (value.is<sol::table>()) {
+			std::string child_lua = table_to_lua(value.as<sol::table>());
+			ret += key_str + "=" + child_lua + ",";
+		}
+	}
+	if (ret.size() > 0)
+		ret.pop_back();
+	return "{" + ret + "}";
+}
+
+std::string previous_json_world = "{}";
 
 void push_world_if_necessary(const sol::table& world) {
 	json::object json_world = table_to_json(world);
@@ -164,13 +187,18 @@ void push_world_if_necessary(const sol::table& world) {
 		{ "type", "world_update" },
 		{ "world", json_world }
 	};
+	std::string json_world_str = json::serialize(json_world);
 	std::string new_world_update_str = json::serialize(world_update);
-	if (new_world_update_str != previous_world_update_str) {
-		std::cout << "sending world update: " << new_world_update_str << "\n";
+	if (json_world_str != previous_json_world) {
 		for (auto& p : players) {
 			send_text(*p->socket, new_world_update_str);
 		}
-		previous_world_update_str = new_world_update_str;
+		std::string world_lua = table_to_lua(world);
+		std::ofstream out("world.lua");
+		out << "world=" + world_lua;
+		out.close();
+		std::cout << "saved world.lua\n";
+		previous_json_world = json_world_str;
 	}
 }
 
@@ -243,6 +271,7 @@ void engine_thread() {
 	lua_state.set_function("prompt_text_response", sol::yielding(lua_api::prompt_text_response));
 	lua_state.set_function("prompt_number_response", sol::yielding(lua_api::prompt_number_response));
 	lua_state.set_function("log", lua_api::log);
+	lua_state.set_function("get_players", lua_api::get_players);
 
 	for (;;) {
 		semaphore.wait();

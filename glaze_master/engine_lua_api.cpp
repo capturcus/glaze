@@ -71,3 +71,11 @@ void lua_api::log(std::string message) {
     }
     std::cout << "[log] " << message << "\n";
 }
+
+std::vector<std::string> lua_api::get_players() {
+    std::vector<std::string> ret;
+    for (auto& p : players) {
+        ret.push_back(p->name);
+    }
+    return ret;
+}
