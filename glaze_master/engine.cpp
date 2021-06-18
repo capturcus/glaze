@@ -34,7 +34,25 @@ void enqueue_message(player* p, const std::string& message) {
 typedef json::value (*rpc_handler)(json::value);
 
 json::value rpc_actions_for_node(json::value data) {
-	return json::array();
+	std::string path = data.as_string().c_str();
+	auto new_thread = sol::thread::create(lua_state.lua_state());
+	sol::state_view runner_state = new_thread.state();
+	sol::table lua_ret;
+	try {
+		lua_ret = runner_state["actions_for_node"](path);
+	} catch (const sol::error& e) {
+		std::cout << "failed to execute actions_for_node: " << e.what() << "\n";
+		return json::array();
+	}
+	json::array ret;
+
+    for (const auto& key_value_pair : lua_ret ) {
+		sol::object value = key_value_pair.second;
+
+        auto value_str = value.as<std::string>();
+        ret.emplace_back(value_str);
+	}
+	return ret;
 }
 
 std::map<std::string, rpc_handler> rpc_handlers = {
@@ -199,6 +217,14 @@ void process_message(player* p, const std::string& message) {
 	}
 	if (j["type"] == "prompt_result")
 		process_prompt_result(j);
+
+	if (j["type"] == "action_taken") {
+		if (j["action"].is_null() || j["target"].is_null())
+			return;
+		std::string action = j["action"].as_string().c_str();
+		std::string target = j["target"].as_string().c_str();
+		run_as_resumable("action_taken(\""+action+"\", \""+target+"\")");
+	}
 
 	if (lua_state["world"].get_type() == sol::type::table) {
 		sol::table world = lua_state["world"];

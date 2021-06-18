@@ -1,8 +1,16 @@
-prompt_text("siemka", "hello and welcome")
-log("after prompt text")
-color = prompt_choice("siemka", "what is your favorite color?", {"red", "green", "blue"})
-log("your favorite color is "..color)
-name = prompt_text_response("siemka", "what is your name?")
-log("your name is "..name)
-dice = prompt_number_response("siemka", "throw d6")
-log("your dice is "..tostring(dice))
+world.counter = 0
+
+function actions_for_node(path)
+    print("path: "..path)
+    return {"fuck", "marry", "kill"}
+end
+
+function action_taken(action, target)
+    print("action ("..action..") taken on: "..target)
+    world.counter = world.counter + 1
+    prompt_text("siemka", "balls")
+end
+
+ret = prompt_choice("siemka2", "test choice", {"a", "b", "c"});
+print(ret)
+world.counter = world.counter + 1
