@@ -39,6 +39,12 @@ final TreeViewTheme treeViewTheme = TreeViewTheme(
   colorScheme: ColorScheme.light(),
 );
 
+class VisibilityResult {
+  bool visibleForMe;
+  bool includeParent;
+  VisibilityResult(this.visibleForMe, this.includeParent);
+}
+
 class _GamePageState extends State<GamePage> {
   late TreeViewController _treeViewController;
   bool docsOpen = true;
@@ -46,6 +52,7 @@ class _GamePageState extends State<GamePage> {
   List<String> logMessages = [];
   ScrollController _scrollController = new ScrollController();
   Map<String, Completer<dynamic>> _rpcCompleters = {};
+  String myName = "";
 
   _GamePageState() {
     _treeViewController = TreeViewController(children: []);
@@ -86,6 +93,21 @@ class _GamePageState extends State<GamePage> {
     return child.expanded;
   }
 
+  _isVisibleForMe(String visibilityString) {
+    List<String> words = visibilityString.split(" ");
+    bool includeParent = false;
+    bool visibleToMe = true;
+    for (var word in words) {
+      if (word == "include_parent") includeParent = true;
+      if (word == "all") visibleToMe = true;
+      if (word == "!all") visibleToMe = false;
+      if (word == this.myName) visibleToMe = true;
+      if (word == "!" + this.myName) visibleToMe = false;
+    }
+    return VisibilityResult(visibleToMe, includeParent);
+  }
+
+  // this also applies visibility
   List<Node> _jsonToNodeList(j, List<Node>? previousNodes) {
     List<Node> ret = [];
     if (j is Map<String, dynamic>) {
@@ -93,6 +115,11 @@ class _GamePageState extends State<GamePage> {
       for (var key in map.keys) {
         var val = map[key];
         if (val is String || val is double) {
+          if (key == "_v") {
+            var v = _isVisibleForMe(val.toString());
+            if (!v.visibleForMe) return [];
+            continue; // don't show the visibility field
+          }
           ret.add(Node(key: _newKey(), label: key + ": " + val.toString()));
         }
         if (val is Map<String, dynamic>) {
@@ -102,6 +129,10 @@ class _GamePageState extends State<GamePage> {
           Node? node = (previousNodes == null)
               ? null
               : _getChildByLabel(previousNodes, key);
+          if (val.containsKey("_v")) {
+            var v = _isVisibleForMe(val["_v"].toString());
+            if (!v.visibleForMe && v.includeParent) continue;
+          }
           ret.add(Node(
               key: _newKey(),
               label: key,
@@ -171,13 +202,14 @@ class _GamePageState extends State<GamePage> {
           builder: (context) => ConnectPage(),
         ));
     final hostAndPort = result[0].toString().split(":");
+    this.myName = result[1];
     final uri = Uri(
         scheme: 'ws',
         host: hostAndPort[0],
         port: (hostAndPort.length == 2) ? int.parse(hostAndPort[1]) : 80);
     webSocketChannel = WebSocketChannel.connect(uri);
     webSocketChannel.stream.listen(_websocketListen);
-    webSocketChannel.sink.add('{"name":"' + result[1] + '"}');
+    webSocketChannel.sink.add('{"name":"' + this.myName + '"}');
   }
 
   List<String> _getPathAux(Node n, List<String> ret) {
