@@ -94,6 +94,9 @@ class _GamePageState extends State<GamePage> {
   }
 
   _isVisibleForMe(String visibilityString) {
+    if (myName == "master") {
+      return VisibilityResult(true, false);
+    }
     List<String> words = visibilityString.split(" ");
     bool includeParent = false;
     bool visibleToMe = true;
