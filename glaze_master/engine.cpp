@@ -236,11 +236,7 @@ void process_message(player* p, const std::string& message) {
 		if (line.size() > 0 && line[0] == '/') {
 			process_cmd(line.substr(1));
 		} else {
-			lua_state.safe_script(line, [](lua_State*, sol::protected_function_result pfr) {
-				sol::error err = pfr;
-				std::cout << "engine: lua error: " << err.what() << std::endl;
-				return pfr;
-			});
+			run_as_resumable(line);
 		}
 	}
 	if (j["type"] == "prompt_result")
@@ -262,16 +258,19 @@ void process_message(player* p, const std::string& message) {
 	}
 }
 
+#define SET_LUA_FUNCTION(fn) lua_state.set_function(#fn, lua_api::fn)
+#define SET_LUA_FUNCTION_YIELDING(fn) lua_state.set_function(#fn, sol::yielding(lua_api::fn))
+
 void engine_thread() {
 	lua_state.open_libraries(sol::lib::base, sol::lib::coroutine);
 
 	lua_state["world"] = sol::new_table();
-	lua_state.set_function("prompt_choice", sol::yielding(lua_api::prompt_choice));
-	lua_state.set_function("prompt_text", sol::yielding(lua_api::prompt_text));
-	lua_state.set_function("prompt_text_response", sol::yielding(lua_api::prompt_text_response));
-	lua_state.set_function("prompt_number_response", sol::yielding(lua_api::prompt_number_response));
-	lua_state.set_function("log", lua_api::log);
-	lua_state.set_function("get_players", lua_api::get_players);
+	SET_LUA_FUNCTION_YIELDING(prompt_choice);
+	SET_LUA_FUNCTION_YIELDING(prompt_text);
+	SET_LUA_FUNCTION_YIELDING(prompt_text_response);
+	SET_LUA_FUNCTION_YIELDING(prompt_number_response);
+	SET_LUA_FUNCTION(log);
+	SET_LUA_FUNCTION(get_players);
 
 	for (;;) {
 		semaphore.wait();
