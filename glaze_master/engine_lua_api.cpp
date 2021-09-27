@@ -79,3 +79,10 @@ std::vector<std::string> lua_api::get_players() {
     }
     return ret;
 }
+
+void lua_api::run_for_players(sol::this_state s, std::vector<std::string> player_names, std::string function_name) {
+    auto state_view = sol::state_view(s);
+    for (auto& player_name : player_names) {
+        run_function_as_resumable(state_view, function_name, player_name);
+    }
+}

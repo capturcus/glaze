@@ -8,15 +8,8 @@
 #include <iostream>
 #include <fstream>
 
-#include <boost/lexical_cast.hpp>
 #include <boost/interprocess/sync/interprocess_semaphore.hpp>
 #include <boost/json.hpp>
-#include <boost/uuid/uuid_generators.hpp>
-#include <boost/uuid/uuid_io.hpp>
-#include <boost/uuid/uuid.hpp>
-
-#define SOL_ALL_SAFETIES_ON 1
-#include "deps/sol/sol.hpp"
 
 namespace json = boost::json;
 
@@ -87,28 +80,7 @@ void process_rpc_call(player* p, std::string rpc_key,
 }
 
 boost::uuids::random_generator generator;
-
-struct sol_resumable {
-	sol::thread runner;
-	sol::coroutine coroutine;
-};
-
 std::map<std::string, std::unique_ptr<sol_resumable>> resumables;
-
-template<typename... Args>
-void continue_coroutine(std::unique_ptr<sol_resumable>&& resumable, Args... args) {
-	std::string coroutine_id = boost::lexical_cast<std::string>(generator());
-	sol::state_view runner_state = resumable->runner.state();
-	runner_state[COROUTINE_ID] = coroutine_id;
-	auto result = resumable->coroutine(args...);
-	if (!result.valid()) {
-		sol::error err = result;
-		std::string what = err.what();
-		std::cout << what << std::endl;
-	}
-	if (resumable->coroutine.runnable())
-		resumables.insert({coroutine_id, std::move(resumable)});
-}
 
 void run_as_resumable(const std::string& lua_code) {
 	auto full_script = "function __main()\n" + lua_code + "\nend"; // because I just like to watch the world burn
@@ -271,6 +243,7 @@ void engine_thread() {
 	SET_LUA_FUNCTION_YIELDING(prompt_number_response);
 	SET_LUA_FUNCTION(log);
 	SET_LUA_FUNCTION(get_players);
+	SET_LUA_FUNCTION(run_for_players);
 
 	for (;;) {
 		semaphore.wait();
