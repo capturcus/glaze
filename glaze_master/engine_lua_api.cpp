@@ -80,9 +80,9 @@ std::vector<std::string> lua_api::get_players() {
     return ret;
 }
 
-void lua_api::run_for_players(sol::this_state s, std::vector<std::string> player_names, std::string function_name) {
+void lua_api::run_in_background(sol::this_state s, sol::coroutine coroutine, std::vector<sol::table> tables) {
     auto state_view = sol::state_view(s);
-    for (auto& player_name : player_names) {
-        run_function_as_resumable(state_view, function_name, player_name);
+    for (auto& table : tables) {
+        run_coroutine_as_resumable(state_view, coroutine, table);
     }
 }

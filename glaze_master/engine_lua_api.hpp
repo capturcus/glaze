@@ -17,6 +17,6 @@ void prompt_text_response(sol::this_state s, std::string player, std::string pro
 void prompt_number_response(sol::this_state s, std::string player, std::string prompt);
 void log(std::string message);
 std::vector<std::string> get_players();
-void run_for_players(sol::this_state s, std::vector<std::string> player_names, std::string function_name);
+void run_in_background(sol::this_state s, sol::coroutine coroutine, std::vector<sol::table> tables);
 
 } // lua_api

@@ -84,16 +84,14 @@ std::map<std::string, std::unique_ptr<sol_resumable>> resumables;
 
 void run_as_resumable(const std::string& lua_code) {
 	auto full_script = "function __main()\n" + lua_code + "\nend"; // because I just like to watch the world burn
-	auto new_resumable = std::make_unique<sol_resumable>();
-	new_resumable->runner = sol::thread::create(lua_state.lua_state());
-	sol::state_view runner_state = new_resumable->runner.state();
-	runner_state.safe_script(full_script, [](lua_State*, sol::protected_function_result pfr) {
+	lua_state.safe_script(full_script, [](lua_State*, sol::protected_function_result pfr) {
 		sol::error err = pfr;
 		std::cout << "run_as_resumable: lua error: " << err.what() << std::endl;
 		return pfr;
 	});
-	new_resumable->coroutine = runner_state["__main"];
-	continue_coroutine(std::move(new_resumable));
+	sol::coroutine coroutine = lua_state["__main"];
+	run_coroutine_as_resumable(lua_state, coroutine);
+	lua_state["__main"] = nullptr;
 }
 
 void process_cmd(const std::string& line) {
@@ -243,7 +241,7 @@ void engine_thread() {
 	SET_LUA_FUNCTION_YIELDING(prompt_number_response);
 	SET_LUA_FUNCTION(log);
 	SET_LUA_FUNCTION(get_players);
-	SET_LUA_FUNCTION(run_for_players);
+	SET_LUA_FUNCTION(run_in_background);
 
 	for (;;) {
 		semaphore.wait();

@@ -44,10 +44,10 @@ void continue_coroutine(std::unique_ptr<sol_resumable>&& resumable, Args... args
 }
 
 template<typename... Args>
-void run_function_as_resumable(sol::state_view& lua_state, const std::string& function_name, Args... args) {
+void run_coroutine_as_resumable(sol::state_view& lua_state, sol::coroutine coroutine, Args... args) {
 	auto new_resumable = std::make_unique<sol_resumable>();
 	new_resumable->runner = sol::thread::create(lua_state.lua_state());
 	sol::state_view runner_state = new_resumable->runner.state();
-	new_resumable->coroutine = runner_state[function_name];
+	new_resumable->coroutine = sol::coroutine(runner_state, coroutine);
 	continue_coroutine(std::move(new_resumable), args...);
 }
