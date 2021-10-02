@@ -9,30 +9,27 @@
 #include <fstream>
 
 #include <boost/interprocess/sync/interprocess_semaphore.hpp>
-#include <boost/json.hpp>
-
-namespace json = boost::json;
 
 std::mutex queue_mutex;
-std::queue<std::pair<player*, std::string>> queue;
+std::queue<std::pair<player*, json::object>> queue;
 boost::interprocess::interprocess_semaphore semaphore(0);
 sol::state lua_state;
 
-void enqueue_message(player* p, const std::string& message) {
+void enqueue_message(player* p, const json::object& message) {
 	std::unique_lock<std::mutex> ulock(queue_mutex);
 	queue.push({p, message});
 	semaphore.post();
 }
 
-typedef json::value (*rpc_handler)(json::value);
+typedef json::value (*rpc_handler)(std::string, json::value);
 
-json::value rpc_actions_for_node(json::value data) {
+json::value rpc_actions_for_node(std::string player_name, json::value data) {
 	std::string path = data.as_string().c_str();
 	auto new_thread = sol::thread::create(lua_state.lua_state());
 	sol::state_view runner_state = new_thread.state();
 	sol::table lua_ret;
 	try {
-		lua_ret = runner_state["actions_for_node"](path);
+		lua_ret = runner_state["actions_for_node"](player_name, path);
 	} catch (const sol::error& e) {
 		std::cout << "failed to execute actions_for_node: " << e.what() << "\n";
 		return json::array();
@@ -70,7 +67,7 @@ void send_to_player_by_name(const std::string& name, std::string data) {
 
 void process_rpc_call(player* p, std::string rpc_key,
 	std::string function_name, json::value data) {
-	json::value ret = rpc_handlers[function_name](data);
+	json::value ret = rpc_handlers[function_name](p->name, data);
 	json::object ret_j = {
 		{ "type", "rpc_result" },
 		{ "rpc_key", rpc_key },
@@ -187,15 +184,7 @@ void process_prompt_result(json::object j) {
 		continue_coroutine(std::move(resumable));
 }
 
-void process_message(player* p, const std::string& message) {
-	json::object j;
-	try {
-		j = json::parse(message).as_object();
-	} catch(const boost::exception& e) {
-		std::cout << "engine: parsing json failed\n";
-		return;
-	}
-	std::cout << message << "\n";
+void process_message(player* p, json::object j) {
 	if (j["type"] == "rpc_call")
 		process_rpc_call(p, j["rpc_key"].as_string().c_str(),
 			j["function_name"].as_string().c_str(), j["data"]);
@@ -217,7 +206,7 @@ void process_message(player* p, const std::string& message) {
 			return;
 		std::string action = j["action"].as_string().c_str();
 		std::string target = j["target"].as_string().c_str();
-		run_as_resumable("action_taken(\""+action+"\", \""+target+"\")");
+		run_as_resumable("action_taken(\""+p->name+"\", \""+action+"\", \""+target+"\")");
 	}
 
 	if (lua_state["world"].get_type() == sol::type::table) {
@@ -232,7 +221,7 @@ void process_message(player* p, const std::string& message) {
 #define SET_LUA_FUNCTION_YIELDING(fn) lua_state.set_function(#fn, sol::yielding(lua_api::fn))
 
 void engine_thread() {
-	lua_state.open_libraries(sol::lib::base, sol::lib::coroutine);
+	lua_state.open_libraries(sol::lib::base, sol::lib::coroutine, sol::lib::table);
 
 	lua_state["world"] = sol::new_table();
 	SET_LUA_FUNCTION_YIELDING(prompt_choice);

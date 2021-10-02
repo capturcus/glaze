@@ -39,7 +39,15 @@ void websocket_main_loop(player *p)
 		for (;;)
 		{
 			auto message = next_message(*p->socket);
-			enqueue_message(p, message);
+			json::object j;
+			try {
+				j = json::parse(message).as_object();
+			} catch(const boost::exception& e) {
+				std::cout << "engine: parsing json failed\n";
+				return;
+			}
+			std::cout << message << "\n";
+			enqueue_message(p, j);
 		}
 	}
 	catch (const boost::system::system_error &error)
@@ -98,7 +106,9 @@ void do_session(tcp::socket socket)
 	{
 		std::cerr << "Error: " << e.what() << std::endl;
 	}
-	enqueue_message(new_player_ptr, "{\"type\":\"init_world\"}");
+	enqueue_message(new_player_ptr, {
+		{ "type", "init_world" },
+	});
 	if (new_player_ptr)
 		websocket_main_loop(new_player_ptr);
 }

@@ -10,9 +10,13 @@
 #include <boost/uuid/uuid_io.hpp>
 #include <boost/uuid/uuid.hpp>
 
+#include <boost/json.hpp>
+
+namespace json = boost::json;
+
 struct player;
 
-void enqueue_message(player* p, const std::string& message);
+void enqueue_message(player* p, const json::object& message);
 void engine_thread();
 
 #define SOL_ALL_SAFETIES_ON 1

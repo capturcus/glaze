@@ -26,6 +26,10 @@ void cli_thread() {
 		std::string line;
 		getline(std::cin, line);
         boost::replace_all(line, "\"", "\\\"");
-		enqueue_message(nullptr, "{\"type\":\"cli_input\", \"line\":\"" + trim(line) + "\"}");
+        // json::object j = ;
+		enqueue_message(nullptr, {
+            { "type", "cli_input" },
+            { "line",  trim(line) }
+        });
 	}
 }
